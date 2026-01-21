@@ -1,17 +1,17 @@
-/**
- * Cat vs Dog Runner
- * Core Game Logic
- */
+// Init Game
+// Wait for font load (optional) or just load
+window.addEventListener('load', () => {
+    const game = new Game();
+});
 
 class Game {
     constructor() {
         this.canvas = document.getElementById('gameCanvas');
         this.ctx = this.canvas.getContext('2d');
-        this.width = this.canvas.width;
-        this.height = this.canvas.height;
+        this.width = window.innerWidth;
+        this.height = window.innerHeight;
 
         this.lastTime = 0;
-        this.speed = 0;
         this.score = 0;
         this.gameSpeed = 5;
         this.isPlaying = false;
@@ -30,7 +30,7 @@ class Game {
 
         // Setup Resize Listener
         window.addEventListener('resize', () => this.resize());
-        this.resize();
+        this.resize(); // Initial call
 
         // Bind UI Elements
         this.startScreen = document.getElementById('start-screen');
@@ -45,18 +45,18 @@ class Game {
     }
 
     resize() {
-        this.canvas.width = window.innerWidth > 1200 ? 1200 : window.innerWidth;
-        this.canvas.height = window.innerHeight > 600 ? 600 : window.innerHeight;
-        this.width = this.canvas.width;
-        this.height = this.canvas.height;
-        this.groundLevel = this.height * 0.8; // Ground is at 80% height
+        this.width = window.innerWidth;
+        this.height = window.innerHeight;
+        this.canvas.width = this.width;
+        this.canvas.height = this.height;
+        this.groundLevel = this.height - 100; // Ground 100px from bottom (Classic style)
     }
 
     startGame() {
         this.isPlaying = true;
         this.isGameOver = false;
         this.score = 0;
-        this.gameSpeed = 5;
+        this.gameSpeed = 6; // Start slightly faster
         this.obstacles = [];
         this.lastTime = 0;
         this.player.reset();
@@ -91,11 +91,9 @@ class Game {
 
         // Obstacle Handling
         if (this.obstacles.length === 0 ||
-            this.obstacles[this.obstacles.length - 1].x < this.width - 400) { // Spawn distance
+            this.obstacles[this.obstacles.length - 1].x < this.width - (300 + Math.random() * 500)) { // Random spacing
             // Random chance to spawn
-            if (Math.random() < 0.02) {
-                this.obstacles.push(new Obstacle(this));
-            }
+            this.obstacles.push(new Obstacle(this));
         }
 
         this.obstacles.forEach((obstacle, index) => {
@@ -110,7 +108,7 @@ class Game {
 
         // Score
         const previousScore = Math.floor(this.score);
-        this.score += 0.1;
+        this.score += 0.15; // Faster accumulation
         const currentScore = Math.floor(this.score);
 
         if (previousScore % 100 !== 0 && currentScore % 100 === 0) {
@@ -119,8 +117,8 @@ class Game {
 
         this.scoreEl.innerText = currentScore.toString().padStart(5, '0');
 
-        // Speed scaling
-        this.gameSpeed += 0.001;
+        // Speed scaling (Cap at some point)
+        if (this.gameSpeed < 15) this.gameSpeed += 0.001;
     }
 
     draw() {
@@ -132,11 +130,22 @@ class Game {
     }
 
     checkCollision(player, obstacle) {
+        // Shrink hitbox slightly for fairness
+        const hitboxX = player.x + 10;
+        const hitboxY = player.y + 10;
+        const hitboxW = player.width - 20;
+        const hitboxH = player.height - 15;
+
+        const obsHitboxX = obstacle.x + 5;
+        const obsHitboxY = obstacle.y + 5;
+        const obsHitboxW = obstacle.width - 10;
+        const obsHitboxH = obstacle.height - 10;
+
         return (
-            player.x < obstacle.x + obstacle.width &&
-            player.x + player.width > obstacle.x &&
-            player.y < obstacle.y + obstacle.height &&
-            player.y + player.height > obstacle.y
+            hitboxX < obsHitboxX + obsHitboxW &&
+            hitboxX + hitboxW > obsHitboxX &&
+            hitboxY < obsHitboxY + obsHitboxH &&
+            hitboxY + hitboxH > obsHitboxY
         );
     }
 
@@ -162,7 +171,6 @@ class InputHandler {
                 && this.keys.indexOf(e.code) === -1) {
                 this.keys.push(e.code);
             }
-            // Debug Start
             if (e.code === 'Enter' && !game.isPlaying) game.startGame();
         });
 
@@ -174,7 +182,6 @@ class InputHandler {
             }
         });
 
-        // Touch support
         window.addEventListener('touchstart', () => {
             if (this.keys.indexOf('Space') === -1) this.keys.push('Space');
         });
@@ -187,29 +194,28 @@ class InputHandler {
 class Player {
     constructor(game) {
         this.game = game;
-        this.width = 50; // Placeholder size
-        this.height = 50;
-        this.x = 50;
-        this.y = this.game.groundLevel - this.height;
-        this.vy = 0;
-        this.weight = 1;
-        this.jumpPower = 15; // Starting simple
-        this.color = '#FFA726'; // Orange Cat
+        this.width = 40;
+        this.height = 40;
+        this.x = 80; // Little closer to left
+        this.reset();
+
+        // Physics Tuning
+        this.jumpForce = 22; // Stronger initial pop
+        this.weight = 0.8;   // Lower gravity for "floatier" feel
     }
 
     reset() {
         this.y = this.game.groundLevel - this.height;
         this.vy = 0;
+        this.game.groundLevel = this.game.height - 100; // Sync
     }
 
     update(input, deltaTime) {
         // Jump
         if ((input.keys.includes('Space') || input.keys.includes('ArrowUp')) && this.onGround()) {
-            this.vy -= 20;
+            this.vy = -this.jumpForce;
             this.game.sound.jump();
         }
-
-        // Horizontal Movement (Optional, usually fixed X)
 
         // Physics
         this.y += this.vy;
@@ -220,24 +226,20 @@ class Player {
             this.y = this.game.groundLevel - this.height;
         }
 
-        // Ensure ground clamp
-        if (this.y > this.game.groundLevel - this.height) {
-            this.y = this.game.groundLevel - this.height;
+        // Fast Fall
+        if (input.keys.includes('ArrowDown') && !this.onGround()) {
+            this.vy += 2;
         }
     }
 
     draw(ctx) {
-        ctx.font = '40px Arial';
         ctx.textAlign = 'left';
         ctx.textBaseline = 'top';
-        // Draw Shadow
-        ctx.fillStyle = 'rgba(0,0,0,0.2)';
-        ctx.beginPath();
-        ctx.ellipse(this.x + 25, this.y + 45, 15, 5, 0, 0, Math.PI * 2);
-        ctx.fill();
+        ctx.font = '40px Arial'; // Or a custom symbol
 
-        // Draw Cat Emoji
-        // Flip if needed (not easy with text, but okay for side view)
+        // Simple pixel-ish Cat or Emoji
+        // Use Black Emoji or Grayscale
+        ctx.fillStyle = '#000000';
         ctx.fillText('🐱', this.x, this.y);
     }
 
@@ -254,7 +256,7 @@ class Obstacle {
         this.x = this.game.width;
         this.y = this.game.groundLevel - this.height;
         this.markedForDeletion = false;
-        // Random dog variety
+        // Darkened Dog
         this.type = Math.random() < 0.5 ? '🐕' : '🐩';
     }
 
@@ -264,13 +266,8 @@ class Obstacle {
     }
 
     draw(ctx) {
-        // Shadow
-        ctx.fillStyle = 'rgba(0,0,0,0.2)';
-        ctx.beginPath();
-        ctx.ellipse(this.x + 20, this.y + 40, 15, 5, 0, 0, Math.PI * 2);
-        ctx.fill();
-
         ctx.font = '40px Arial';
+        ctx.fillStyle = '#000000'; // Pure Black
         ctx.fillText(this.type, this.x, this.y);
     }
 }
@@ -285,35 +282,30 @@ class Background {
     }
 
     update() {
-        // Generate Clouds
-        if (this.cloudTimer > 100 + Math.random() * 200) {
+        // Clouds (Slow, high)
+        if (Math.random() < 0.005) {
             this.clouds.push({
                 x: this.game.width,
-                y: Math.random() * (this.game.height / 2),
+                y: Math.random() * (this.game.height / 3),
                 size: 30 + Math.random() * 40,
-                speed: 0.5 + Math.random() * 0.5
+                speed: 0.2
             });
-            this.cloudTimer = 0;
-        } else {
-            this.cloudTimer++;
         }
 
-        // Generate Trees
-        if (this.treeTimer > 50 + Math.random() * 100) { // More frequent than clouds
+        // Trees on Ground (Irregular)
+        // Chance to spawn tree independent of obstacles, but background layer
+        if (Math.random() < 0.015) {
             this.trees.push({
                 x: this.game.width,
-                y: this.game.groundLevel - 20, // Slightly sunken or on line
-                size: 40 + Math.random() * 20,
+                y: this.game.groundLevel - 15, // Grounded
+                size: 20 + Math.random() * 10,
                 type: Math.random() < 0.5 ? '🌲' : '🌳'
             });
-            this.treeTimer = 0;
-        } else {
-            this.treeTimer += (this.game.gameSpeed / 5); // Trees spawn relative to game speed
         }
 
-        // Move objects
+        // Move
         this.clouds.forEach(c => c.x -= c.speed);
-        this.trees.forEach(t => t.x -= this.game.gameSpeed); // Trees move with ground
+        this.trees.forEach(t => t.x -= this.game.gameSpeed);
 
         // Cleanup
         this.clouds = this.clouds.filter(c => c.x > -100);
@@ -321,40 +313,35 @@ class Background {
     }
 
     draw(ctx) {
-        // Draw Clouds
-        ctx.textAlign = 'left';
-        ctx.textBaseline = 'middle';
-        this.clouds.forEach(c => {
-            ctx.font = `${c.size}px Arial`;
-            ctx.fillText('☁️', c.x, c.y);
-        });
-
-        // Draw Ground Line
-        ctx.fillStyle = '#81C784'; // Green Grass
-        ctx.fillRect(0, this.game.groundLevel, this.game.width, this.game.height - this.game.groundLevel);
-
-        // Draw Ground Decor (Trees behind path?)
-        // Let's draw trees on the horizon
-        this.trees.forEach(t => {
-            ctx.font = `${t.size}px Arial`;
-            // Draw tree slightly above ground level to look planted
-            ctx.fillText(t.type, t.x, t.y - t.size / 2);
-        });
-
-        // Grass trim
-        ctx.strokeStyle = '#4CAF50';
-        ctx.lineWidth = 5;
+        // Ground Line
+        ctx.strokeStyle = '#535353';
+        ctx.lineWidth = 2;
         ctx.beginPath();
         ctx.moveTo(0, this.game.groundLevel);
         ctx.lineTo(this.game.width, this.game.groundLevel);
         ctx.stroke();
+
+        // Clouds (Gray)
+        ctx.fillStyle = '#EEEEEE'; // Very light gray for depth
+        this.clouds.forEach(c => {
+            ctx.font = `${c.size}px Arial`;
+            ctx.fillText('☁️', c.x, c.y);
+            // Note: Emojis have colors, we can use filter or just simple shapes if needed.
+            // CSS grayscale(100%) on canvas handles the color removal.
+        });
+
+        // Trees (Gray)
+        ctx.fillStyle = '#999999';
+        this.trees.forEach(t => {
+            ctx.font = `${t.size}px Arial`;
+            // Emojis might still show color unless canvas has filter.
+            // But we will apply filter to canvas in style.css or here.
+            ctx.filter = 'grayscale(100%) opacity(50%)';
+            ctx.fillText(t.type, t.x, t.y - t.size / 2);
+            ctx.filter = 'none'; // Reset
+        });
     }
 }
-
-// Init Game
-window.addEventListener('load', () => {
-    const game = new Game();
-});
 
 class SoundManager {
     constructor() {
@@ -368,8 +355,8 @@ class SoundManager {
         const gain = this.ctx.createGain();
         osc.type = type;
         osc.frequency.setValueAtTime(freq, this.ctx.currentTime);
-        gain.gain.setValueAtTime(0.1, this.ctx.currentTime);
-        gain.gain.exponentialRampToValueAtTime(0.01, this.ctx.currentTime + duration);
+        gain.gain.setValueAtTime(0.05, this.ctx.currentTime);
+        gain.gain.exponentialRampToValueAtTime(0.001, this.ctx.currentTime + duration);
         osc.connect(gain);
         gain.connect(this.ctx.destination);
         osc.start();
@@ -377,17 +364,14 @@ class SoundManager {
     }
 
     jump() {
-        this.playTone(400, 'sine', 0.1);
-        setTimeout(() => this.playTone(600, 'sine', 0.2), 50);
+        this.playTone(600, 'square', 0.1); // Retro beep
     }
 
     score() {
-        this.playTone(1000, 'square', 0.1);
+        this.playTone(1200, 'sine', 0.1);
     }
 
     die() {
-        this.playTone(200, 'sawtooth', 0.5);
-        this.playTone(150, 'sawtooth', 0.5); // overlapping descending feel
+        this.playTone(150, 'sawtooth', 0.4);
     }
 }
-
