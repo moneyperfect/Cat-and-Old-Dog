@@ -1,0 +1,36 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Cat vs Dog Runner</title>
+    <link rel="stylesheet" href="style.css">
+    <link href="https://fonts.googleapis.com/css2?family=Fredoka:wght@400;600&display=swap" rel="stylesheet">
+</head>
+<body>
+    <div id="game-container">
+        <canvas id="gameCanvas"></canvas>
+        
+        <!-- UI Overlays -->
+        <div id="ui-layer">
+            <div id="score-board">
+                <span id="score">00000</span>
+                <span id="high-score">HI 00000</span>
+            </div>
+            
+            <div id="start-screen" class="screen active">
+                <h1>Cat Run 🐾</h1>
+                <p>按空格键或点击屏幕跳跃</p>
+                <button id="start-btn" class="primary-btn">开始游戏</button>
+            </div>
+
+            <div id="game-over-screen" class="screen hidden">
+                <h1>哎呀！被抓住了 😿</h1>
+                <p>得分: <span id="final-score">0</span></p>
+                <button id="restart-btn" class="primary-btn">再试一次</button>
+            </div>
+        </div>
+    </div>
+    <script src="script.js"></script>
+</body>
+</html>
