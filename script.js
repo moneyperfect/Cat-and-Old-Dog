@@ -13,7 +13,7 @@ class Game {
 
         this.lastTime = 0;
         this.score = 0;
-        this.gameSpeed = 5;
+        this.gameSpeed = 6;
         this.isPlaying = false;
         this.isGameOver = false;
 
@@ -21,6 +21,9 @@ class Game {
         this.player = new Player(this);
         this.obstacles = [];
         this.background = new Background(this);
+
+        // Logic Vars
+        this.nextSpawnDistance = 0;
 
         // Audio
         this.sound = new SoundManager();
@@ -58,6 +61,7 @@ class Game {
         this.score = 0;
         this.gameSpeed = 6; // Start slightly faster
         this.obstacles = [];
+        this.nextSpawnDistance = 0;
         this.lastTime = 0;
         this.player.reset();
 
@@ -89,11 +93,23 @@ class Game {
         this.background.update();
         this.player.update(this.input, deltaTime);
 
-        // Obstacle Handling
-        if (this.obstacles.length === 0 ||
-            this.obstacles[this.obstacles.length - 1].x < this.width - (300 + Math.random() * 500)) { // Random spacing
-            // Random chance to spawn
+        // Obstacle Handling - Chrome-like Spawning
+        const minGap = 600 + (this.gameSpeed * 10);
+        const maxGap = 1200 + (this.gameSpeed * 20);
+
+        if (this.obstacles.length === 0) {
             this.obstacles.push(new Obstacle(this));
+            this.nextSpawnDistance = Math.random() * (maxGap - minGap) + minGap;
+        } else {
+            const lastObstacle = this.obstacles[this.obstacles.length - 1];
+            const distanceTraveled = this.width - lastObstacle.x;
+
+            if (distanceTraveled > this.nextSpawnDistance) {
+                this.obstacles.push(new Obstacle(this));
+                this.nextSpawnDistance = Math.random() * (maxGap - minGap) + minGap;
+                // Random double dog
+                if (Math.random() < 0.1) this.nextSpawnDistance = 100;
+            }
         }
 
         this.obstacles.forEach((obstacle, index) => {
@@ -118,7 +134,7 @@ class Game {
         this.scoreEl.innerText = currentScore.toString().padStart(5, '0');
 
         // Speed scaling (Cap at some point)
-        if (this.gameSpeed < 15) this.gameSpeed += 0.001;
+        if (this.gameSpeed < 13) this.gameSpeed += 0.0005;
     }
 
     draw() {
