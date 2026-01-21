@@ -52,17 +52,17 @@ class Game {
         this.height = window.innerHeight;
         this.canvas.width = this.width;
         this.canvas.height = this.height;
-        this.groundLevel = this.height - 100; // Ground 100px from bottom (Classic style)
+        this.groundLevel = this.height - 100;
     }
 
     startGame() {
         this.isPlaying = true;
         this.isGameOver = false;
         this.score = 0;
-        this.gameSpeed = 6; // Start slightly faster
+        this.gameSpeed = 6;
         this.obstacles = [];
         this.nextSpawnDistance = 0;
-        this.lastTime = 0;
+        this.lastTime = performance.now(); // Use high res time
         this.player.reset();
 
         this.startScreen.classList.add('hidden');
@@ -82,7 +82,14 @@ class Game {
     gameOver() {
         this.isPlaying = false;
         this.isGameOver = true;
-        this.finalScoreEl.innerText = Math.floor(this.score);
+
+        // Custom Text Update
+        const titleEl = this.gameOverScreen.querySelector('h1');
+        if (titleEl) titleEl.innerText = "宝勤vibe coding牛不牛";
+
+        const scorePEL = this.gameOverScreen.querySelector('p');
+        if (scorePEL) scorePEL.innerHTML = `得分: <span id="final-score">${Math.floor(this.score)}</span>`;
+
         this.gameOverScreen.classList.remove('hidden');
         this.sound.die();
     }
@@ -90,10 +97,14 @@ class Game {
     update(deltaTime) {
         if (!this.isPlaying) return;
 
-        this.background.update();
-        this.player.update(this.input, deltaTime);
+        // Scale factor: If running at 60fps, deltaTime is ~16.6ms. Factor = 1.
+        // If 144hz, deltaTime ~7ms. Factor ~0.4.
+        const dtFactor = deltaTime / 16.6667;
 
-        // Obstacle Handling - Chrome-like Spawning
+        this.background.update(dtFactor);
+        this.player.update(this.input, dtFactor);
+
+        // Obstacle Handling
         const minGap = 600 + (this.gameSpeed * 10);
         const maxGap = 1200 + (this.gameSpeed * 20);
 
@@ -107,24 +118,22 @@ class Game {
             if (distanceTraveled > this.nextSpawnDistance) {
                 this.obstacles.push(new Obstacle(this));
                 this.nextSpawnDistance = Math.random() * (maxGap - minGap) + minGap;
-                // Random double dog
                 if (Math.random() < 0.1) this.nextSpawnDistance = 100;
             }
         }
 
         this.obstacles.forEach((obstacle, index) => {
-            obstacle.update();
+            obstacle.update(dtFactor);
             if (obstacle.markedForDeletion) this.obstacles.splice(index, 1);
 
-            // Collision Detection
             if (this.checkCollision(this.player, obstacle)) {
                 this.gameOver();
             }
         });
 
-        // Score
+        // Score (Time based)
         const previousScore = Math.floor(this.score);
-        this.score += 0.15; // Faster accumulation
+        this.score += 0.15 * dtFactor; // Consistent score rate
         const currentScore = Math.floor(this.score);
 
         if (previousScore % 100 !== 0 && currentScore % 100 === 0) {
@@ -133,8 +142,8 @@ class Game {
 
         this.scoreEl.innerText = currentScore.toString().padStart(5, '0');
 
-        // Speed scaling (Cap at some point)
-        if (this.gameSpeed < 13) this.gameSpeed += 0.0005;
+        // Speed scaling
+        if (this.gameSpeed < 13) this.gameSpeed += 0.0005 * dtFactor;
     }
 
     draw() {
@@ -146,7 +155,6 @@ class Game {
     }
 
     checkCollision(player, obstacle) {
-        // Shrink hitbox slightly for fairness
         const hitboxX = player.x + 10;
         const hitboxY = player.y + 10;
         const hitboxW = player.width - 20;
@@ -212,31 +220,36 @@ class Player {
         this.game = game;
         this.width = 40;
         this.height = 40;
-        this.x = 80; // Little closer to left
+        this.x = 80;
         this.reset();
 
-        // Physics Tuning
-        this.jumpForce = 22; // Stronger initial pop
-        this.weight = 0.8;   // Lower gravity for "floatier" feel
+        this.jumpForce = 22;
+        this.weight = 0.8;
     }
 
     reset() {
         this.y = this.game.groundLevel - this.height;
         this.vy = 0;
-        this.game.groundLevel = this.game.height - 100; // Sync
     }
 
-    update(input, deltaTime) {
+    update(input, dtFactor) {
         // Jump
         if ((input.keys.includes('Space') || input.keys.includes('ArrowUp')) && this.onGround()) {
             this.vy = -this.jumpForce;
             this.game.sound.jump();
         }
 
-        // Physics
-        this.y += this.vy;
+        // Physics (scaled by dtFactor)
+        // Note: Adding velocity is per-frame, so we scale the addition? 
+        // Or scale the position change?
+        // Standard Euler Integration: pos += vel * dt.
+        // We already have vel. 
+        // Gravity should be applied per frame scaled.
+
+        this.y += this.vy * dtFactor;
+
         if (!this.onGround()) {
-            this.vy += this.weight;
+            this.vy += this.weight * dtFactor;
         } else {
             this.vy = 0;
             this.y = this.game.groundLevel - this.height;
@@ -244,17 +257,14 @@ class Player {
 
         // Fast Fall
         if (input.keys.includes('ArrowDown') && !this.onGround()) {
-            this.vy += 2;
+            this.vy += 2 * dtFactor;
         }
     }
 
     draw(ctx) {
         ctx.textAlign = 'left';
         ctx.textBaseline = 'top';
-        ctx.font = '40px Arial'; // Or a custom symbol
-
-        // Simple pixel-ish Cat or Emoji
-        // Use Black Emoji or Grayscale
+        ctx.font = '40px Arial';
         ctx.fillStyle = '#000000';
         ctx.fillText('🐱', this.x, this.y);
     }
@@ -272,18 +282,17 @@ class Obstacle {
         this.x = this.game.width;
         this.y = this.game.groundLevel - this.height;
         this.markedForDeletion = false;
-        // Darkened Dog
         this.type = Math.random() < 0.5 ? '🐕' : '🐩';
     }
 
-    update() {
-        this.x -= this.game.gameSpeed;
+    update(dtFactor) {
+        this.x -= this.game.gameSpeed * dtFactor;
         if (this.x < -this.width) this.markedForDeletion = true;
     }
 
     draw(ctx) {
         ctx.font = '40px Arial';
-        ctx.fillStyle = '#000000'; // Pure Black
+        ctx.fillStyle = '#000000';
         ctx.fillText(this.type, this.x, this.y);
     }
 }
@@ -297,9 +306,9 @@ class Background {
         this.treeTimer = 0;
     }
 
-    update() {
-        // Clouds (Slow, high)
-        if (Math.random() < 0.005) {
+    update(dtFactor) {
+        // Generate Clouds
+        if (Math.random() < 0.005 * dtFactor) {
             this.clouds.push({
                 x: this.game.width,
                 y: Math.random() * (this.game.height / 3),
@@ -308,20 +317,19 @@ class Background {
             });
         }
 
-        // Trees on Ground (Irregular)
-        // Chance to spawn tree independent of obstacles, but background layer
-        if (Math.random() < 0.015) {
+        // Trees on Ground 
+        if (Math.random() < 0.015 * dtFactor) {
             this.trees.push({
                 x: this.game.width,
-                y: this.game.groundLevel - 15, // Grounded
+                y: this.game.groundLevel - 15,
                 size: 20 + Math.random() * 10,
                 type: Math.random() < 0.5 ? '🌲' : '🌳'
             });
         }
 
         // Move
-        this.clouds.forEach(c => c.x -= c.speed);
-        this.trees.forEach(t => t.x -= this.game.gameSpeed);
+        this.clouds.forEach(c => c.x -= c.speed * dtFactor);
+        this.trees.forEach(t => t.x -= this.game.gameSpeed * dtFactor);
 
         // Cleanup
         this.clouds = this.clouds.filter(c => c.x > -100);
@@ -337,24 +345,20 @@ class Background {
         ctx.lineTo(this.game.width, this.game.groundLevel);
         ctx.stroke();
 
-        // Clouds (Gray)
-        ctx.fillStyle = '#EEEEEE'; // Very light gray for depth
+        // Clouds
+        ctx.fillStyle = '#EEEEEE';
         this.clouds.forEach(c => {
             ctx.font = `${c.size}px Arial`;
             ctx.fillText('☁️', c.x, c.y);
-            // Note: Emojis have colors, we can use filter or just simple shapes if needed.
-            // CSS grayscale(100%) on canvas handles the color removal.
         });
 
-        // Trees (Gray)
+        // Trees
         ctx.fillStyle = '#999999';
         this.trees.forEach(t => {
             ctx.font = `${t.size}px Arial`;
-            // Emojis might still show color unless canvas has filter.
-            // But we will apply filter to canvas in style.css or here.
             ctx.filter = 'grayscale(100%) opacity(50%)';
             ctx.fillText(t.type, t.x, t.y - t.size / 2);
-            ctx.filter = 'none'; // Reset
+            ctx.filter = 'none';
         });
     }
 }
@@ -380,7 +384,7 @@ class SoundManager {
     }
 
     jump() {
-        this.playTone(600, 'square', 0.1); // Retro beep
+        this.playTone(600, 'square', 0.1);
     }
 
     score() {
