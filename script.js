@@ -97,8 +97,7 @@ class Game {
     update(deltaTime) {
         if (!this.isPlaying) return;
 
-        // Scale factor: If running at 60fps, deltaTime is ~16.6ms. Factor = 1.
-        // If 144hz, deltaTime ~7ms. Factor ~0.4.
+        // Scale factor
         const dtFactor = deltaTime / 16.6667;
 
         this.background.update(dtFactor);
@@ -138,12 +137,15 @@ class Game {
 
         if (previousScore % 100 !== 0 && currentScore % 100 === 0) {
             this.sound.score();
+            // Speed Boost: Increase by 1/3 of Base (approx 2.0 if base is 6)
+            // User requested: "Original * 1/3"
+            this.gameSpeed += 2; // Simple distinct step
         }
 
         this.scoreEl.innerText = currentScore.toString().padStart(5, '0');
 
-        // Speed scaling
-        if (this.gameSpeed < 13) this.gameSpeed += 0.0005 * dtFactor;
+        // Speed scaling (Diabled continuous, relies on step boost)
+        // if (this.gameSpeed < 13) this.gameSpeed += 0.0005 * dtFactor; 
     }
 
     draw() {
@@ -240,12 +242,6 @@ class Player {
         }
 
         // Physics (scaled by dtFactor)
-        // Note: Adding velocity is per-frame, so we scale the addition? 
-        // Or scale the position change?
-        // Standard Euler Integration: pos += vel * dt.
-        // We already have vel. 
-        // Gravity should be applied per frame scaled.
-
         this.y += this.vy * dtFactor;
 
         if (!this.onGround()) {
@@ -267,6 +263,24 @@ class Player {
         ctx.font = '40px Arial';
         ctx.fillStyle = '#000000';
         ctx.fillText('🐱', this.x, this.y);
+
+        // Draw Legs (Simple Lines)
+        // Animating based on Game Speed / Time
+        if (this.game.isPlaying && this.onGround()) {
+            const legOffset = Math.sin(Date.now() / 50) * 5;
+
+            ctx.lineWidth = 3;
+            ctx.strokeStyle = '#000000';
+            ctx.beginPath();
+            // Front Leg
+            ctx.moveTo(this.x + 28, this.y + 35);
+            ctx.lineTo(this.x + 28 + legOffset, this.y + 45);
+
+            // Back Leg
+            ctx.moveTo(this.x + 12, this.y + 35);
+            ctx.lineTo(this.x + 12 - legOffset, this.y + 45);
+            ctx.stroke();
+        }
     }
 
     onGround() {
